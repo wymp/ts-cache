@@ -1,0 +1,4 @@
+.prettierignore
+tsconfig*
+src
+tests
