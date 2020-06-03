@@ -1,6 +1,11 @@
 Openfinance Cache Library
 ==========================================================================================
 
+**NOTE: This library is now hosted on github packages at
+https://github.com/openfinanceio/ts-cache. For the latest updates, please use the package
+`@openfinanceio/ts-cache` and point npm to github package repo
+([github guide](https://help.github.com/en/packages/using-github-packages-with-your-projects-ecosystem/configuring-npm-for-use-with-github-packages)).**
+
 This is a very small library that implements a simple in-memory cache. It can be segmented (i.e.,
 you can instantiate multiple independent caches with different settings), you can set global and
 local TTLs, and you can set a max key count to prevent the cache from growing too large.
