@@ -1,5 +1,5 @@
 {
-  "name": "@openfinance/cache",
+  "name": "@openfinanceio/cache",
   "version": "1.0.1",
   "description": "A simple, in-memory cache for javascript projects",
   "main": "dist/index.js",
@@ -11,7 +11,7 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://github.com:cfxmarkets/ts-cache.git"
+    "url": "git+ssh://github.com:openfinanceio/ts-cache.git"
   },
   "keywords": [
     "openfinance",
@@ -22,9 +22,9 @@
   "author": "Openfinance Developers",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/cfxmarkets/ts-cache/issues"
+    "url": "https://github.com/openfinanceio/ts-cache/issues"
   },
-  "homepage": "https://github.com/cfxmarkets/ts-cache#readme",
+  "homepage": "https://github.com/openfinanceio/ts-cache#readme",
   "dependencies": {
     "@types/node": "^8.10.58",
     "ts-simple-interfaces": "^0.3.1"
