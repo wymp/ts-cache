@@ -2,7 +2,15 @@ import { SimpleLoggerInterface, SimpleLogLevels } from "ts-simple-interfaces";
 
 declare type CacheConfig = { maxLength: number; ttlSec: number };
 declare type Timeout = any; // Typescript has terrible support for NodeJS.Timeout at this time...
-export class Cache {
+
+export interface CacheInterface {
+  clear(key?: string | RegExp): void;
+  get<T>(key: string): T | undefined;
+  get<T>(key: string, q: () => T, ttlSec?: number): Promise<T>;
+  get<T>(key: string, q: () => Promise<T>, ttlSec?: number): Promise<T>;
+}
+
+export class Cache implements CacheInterface {
   protected config: CacheConfig;
   protected _cache: { [queryKey: string]: { t: number; v: unknown, ttl: Timeout | null } } = {};
   private _groomingCache: boolean = false;
@@ -175,3 +183,27 @@ export class Cache {
 function isPromise<T>(obj: any): obj is Promise<T> {
   return typeof obj.then !== "undefined";
 }
+
+/**
+ * Export a mock cache for easy testing
+ */
+export class MockCache extends Cache {
+  public constructor(
+    config?: Partial<CacheConfig>,
+    log?: SimpleLoggerInterface
+  ) {
+    super(config || {}, log)
+  }
+
+  public get<T>(key: string): T | undefined;
+  public get<T>(key: string, q: () => T, ttlSec?: number): Promise<T>;
+  public get<T>(key: string, q: () => Promise<T>, ttlSec?: number): Promise<T>;
+  public get<T>(key: string, q?: () => T | Promise<T>, ttlSec?: number): T | Promise<T> | undefined {
+    if (!q) {
+      return undefined;
+    } else {
+      return q();
+    }
+  }
+}
+

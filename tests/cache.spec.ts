@@ -1,4 +1,4 @@
-import { Cache } from "../src";
+import { Cache, MockCache } from "../src";
 
 // Extend cache to expose internals
 class TestCache extends Cache {
@@ -133,6 +133,19 @@ describe("Cache", () => {
 
     val = cache.get("test1");
     expect(val).toBe(1);
+  });
+});
+
+describe("MockCache", () => {
+  it("should correctly fulfill Cache dependencies (TS)", () => {
+    const cache: Cache = new MockCache();
+    expect(cache).toHaveProperty("clear");
+  });
+
+  it("should always return what's given", () => {
+    const cache: Cache = new MockCache();
+    expect(cache.get('one', () => Promise.resolve(1))).resolves.toBe(1);
+    expect(cache.get('one', () => Promise.resolve(2))).resolves.toBe(2);
   });
 });
 

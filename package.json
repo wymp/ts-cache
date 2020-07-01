@@ -1,6 +1,6 @@
 {
   "name": "@openfinanceio/cache",
-  "version": "1.0.1",
+  "version": "1.1.0",
   "description": "A simple, in-memory cache for javascript projects",
   "main": "dist/index.js",
   "scripts": {
@@ -26,7 +26,7 @@
   },
   "homepage": "https://github.com/openfinanceio/ts-cache#readme",
   "dependencies": {
-    "@types/node": "^8.10.58",
+    "@types/node": "^8.10.61",
     "ts-simple-interfaces": "^0.3.1"
   },
   "devDependencies": {
@@ -36,7 +36,7 @@
     "prettier": "^1.16.0",
     "pretty-quick": "^1.10.0",
     "ts-jest": "^24.0.2",
-    "typescript": "^3.7.5"
+    "typescript": "^3.9.6"
   },
   "prettier": {
     "printWidth": 100,
