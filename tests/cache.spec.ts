@@ -1,3 +1,5 @@
+import { SimpleLoggerInterface } from "ts-simple-interfaces";
+import { MockSimpleLogger } from "ts-simple-interfaces-testing";
 import { Cache, MockCache } from "../src";
 
 // Extend cache to expose internals
@@ -9,10 +11,15 @@ class TestCache extends Cache {
 
 describe("Cache", () => {
 
+  let log: SimpleLoggerInterface;
   let db: { test1: number; test2: number; test3: number; };
   let cache: TestCache;
+  const t1 = () => Promise.resolve(db.test1);
+  const t2 = () => Promise.resolve(db.test2);
+  const t3 = () => Promise.resolve(db.test3);
   beforeEach(() => {
-    cache = new TestCache({ maxLength: 2 });
+    log = new MockSimpleLogger({ outputMessages: false });
+    cache = new TestCache({ maxLength: 2 }, log);
     db = {
       test1: 1,
       test2: 2,
@@ -21,44 +28,50 @@ describe("Cache", () => {
   });
 
   it("should cache results", async () => {
-    let val = await cache.get("test1", async () => { return db.test1; });
+    let val = await cache.get("test1", t1);
     expect(val).toBe(1);
 
     db.test1 = 100;
-    val = await cache.get("test1", async () => { return db.test1; });
+    val = await cache.get("test1", t1);
     expect(val).toBe(1);
 
     db.test2 = 200;
-    val = await cache.get("test2", async () => { return db.test2; });
+    val = await cache.get("test2", t2);
     expect(val).toBe(200);
   });
 
   it("should clear out old cache keys", async () => {
     let val: number;
-    val = await cache.get("test1", async () => { return db.test1; });
+    val = await cache.get("test1", t1);
     expect(val).toBe(1);
-    val = await cache.get("test2", async () => { return db.test2; });
+    val = await cache.get("test2", t2);
     expect(val).toBe(2);
 
     // Should still have test1 at this point
     db.test1 = 100;
-    val = await cache.get("test1", async () => { return db.test1; });
+    val = await cache.get("test1", t1);
     expect(val).toBe(1);
     expect(cache.getCache()).toHaveProperty("test1");
+    val = await cache.get("test2", t2);
+    expect(val).toBe(2);
 
-    val = await cache.get("test3", async () => { return db.test3; });
+    // Now test1 is the oldest item in the cache
+    val = await cache.get("test3", t3);
     expect(val).toBe(3);
 
+    // Wait a bit for the gc
+    await new Promise(res => setTimeout(() => res(), 8));
+
     expect(cache.getCache()).not.toHaveProperty("test1");
-    val = await cache.get("test1", async () => { return db.test1; });
+    val = await cache.get("test1", t1);
     expect(val).toBe(100);
   });
 
   it("should clear values when requested", async () => {
     let val: number;
-    val = await cache.get("test1", async () => { return db.test1; });
+    val = await cache.get("test1", t1);
     expect(val).toBe(1);
-    val = await cache.get("test2", async () => { return db.test2; });
+    val = await cache.get("test2", t2);
     expect(val).toBe(2);
 
     expect(cache.getCache()).toHaveProperty("test1");
@@ -68,10 +81,10 @@ describe("Cache", () => {
     db.test2 = 200;
     cache.clear("test2");
     expect(cache.getCache()).not.toHaveProperty("test2");
-    val = await cache.get("test2", async () => { return db.test2; });
+    val = await cache.get("test2", t2);
     expect(val).toBe(200);
 
-    val = await cache.get("test3", async () => { return db.test3; });
+    val = await cache.get("test3", t3);
     expect(val).toBe(3);
     expect(cache.getCache()).toHaveProperty("test3");
     expect(cache.getCache()).toHaveProperty("test2");
@@ -87,9 +100,9 @@ describe("Cache", () => {
     let val: number;
     cache = new TestCache({ ttlSec: 2 });
 
-    val = await cache.get("test1", async () => { return db.test1; }, 1);
+    val = await cache.get("test1", t1, 1);
     expect(val).toBe(1);
-    val = await cache.get("test2", async () => { return db.test2; });
+    val = await cache.get("test2", t2);
     expect(val).toBe(2);
 
     expect(cache.getCache()).toHaveProperty("test1");
@@ -133,6 +146,18 @@ describe("Cache", () => {
 
     val = cache.get("test1");
     expect(val).toBe(1);
+  });
+
+  it("should lock on multiple 'get' calls", async () => {
+    let calls: number = 0;
+    const tst = () => Promise.resolve(++calls);
+
+    const res: Array<number> = await Promise.all(
+      [ 1, 2, 3 ].map(n => cache.get<number>("test", tst))
+    );
+
+    expect(JSON.stringify(res)).toBe("[1,1,1]");
+    expect(calls).toBe(1);
   });
 });
 

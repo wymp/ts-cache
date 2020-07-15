@@ -14,6 +14,7 @@ export class Cache implements CacheInterface {
   protected config: CacheConfig;
   protected _cache: { [queryKey: string]: { t: number; v: unknown, ttl: Timeout | null } } = {};
   private _groomingCache: boolean = false;
+  private _lock: { [k: string]: boolean | undefined; } = {};
 
   public constructor(
     config: Partial<CacheConfig>,
@@ -70,60 +71,85 @@ export class Cache implements CacheInterface {
       return val;
     }
 
-    if (!this._cache.hasOwnProperty(key)) {
-      this.log("info", `Cache not set for '${key}'. Getting result and caching.`);
+    const execCache = (): Promise<T> => {
+      if (!this._cache.hasOwnProperty(key)) {
+        // Lock the cache so that we don't get multiple processes trying to set it
+        this._lock[key] = true;
 
-      const t = Date.now();
-      let ttl = (
-        (typeof ttlSec !== "undefined" && ttlSec !== null)
-        ? ttlSec
-        : (typeof this.config.ttlSec !== "undefined" && this.config.ttlSec !== null)
-        ? this.config.ttlSec
-        : 0
-      ) * 1000;
+        this.log("info", `Cache not set for '${key}'. Getting result and caching.`);
 
-      const timeout = ttl > 0
-        ? setTimeout(
-          () => {
-            if (this._cache.hasOwnProperty(key)) {
-              delete this._cache[key];
-            }
-          },
-          ttl!
-        )
-        : null;
+        const t = Date.now();
+        let ttl = (
+          (typeof ttlSec !== "undefined" && ttlSec !== null)
+          ? ttlSec
+          : (typeof this.config.ttlSec !== "undefined" && this.config.ttlSec !== null)
+          ? this.config.ttlSec
+          : 0
+        ) * 1000;
 
-      const val = q();
+        const timeout = ttl > 0
+          ? setTimeout(
+            () => {
+              if (this._cache.hasOwnProperty(key)) {
+                delete this._cache[key];
+              }
+            },
+            ttl!
+          )
+          : null;
 
-      // If q returns a promise, then we have to await that
-      if (isPromise<T>(val)) {
-        this.log("info", `Function returned promise. Awaiting....`);
-        return new Promise((res, rej) => {
-          val
-            .then((v: T) => {
-              this.log("info", `Got response. Setting cache and returning.`);
-              this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(v)}`);
-              this._cache[key] = { t, v, ttl: timeout };
-              this.groomCache();
-              res(v);
-            })
-            .catch((e) => {
-              rej(e);
-            });
-        });
+        const val = q();
+
+        // If q returns a promise, then we have to await that
+        if (isPromise<T>(val)) {
+          this.log("info", `Function returned promise. Awaiting....`);
+          return new Promise((res, rej) => {
+            val
+              .then((v: T) => {
+                this.log("info", `Got response. Setting cache and returning.`);
+                this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(v)}`);
+                this._cache[key] = { t, v, ttl: timeout };
+                this._lock[key] = false;
+                this.groomCache();
+                res(v);
+              })
+              .catch((e) => {
+                rej(e);
+              });
+          });
+        } else {
+          this.log("info", `Function returned value. Returning immediately.`);
+          this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(val)}`);
+          this._cache[key] = { t, v: val, ttl: timeout };
+          this._lock[key] = false;
+          this.groomCache();
+          return Promise.resolve(val);
+        }
       } else {
-        this.log("info", `Function returned value. Returning immediately.`);
+        const val = <T>this._cache[key].v;
+        this._cache[key].t = Date.now();
+        this.log("debug", `Using cached value for '${key}'`);
         this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(val)}`);
-        this._cache[key] = { t, v: val, ttl: timeout };
-        this.groomCache();
         return Promise.resolve(val);
       }
+    }
+
+    if (this._lock[key]) {
+      this.log("debug", `Cache locked for key ${key}. Waiting.`);
+      return new Promise<T>((res, rej) => {
+        const wait = () => {
+          if(this._lock[key]) {
+            setTimeout(wait, 10);
+          } else {
+            this.log("debug", `Cache released for key ${key}. Executing.`);
+            res(execCache());
+          }
+        }
+        wait();
+      });
     } else {
-      const val = <T>this._cache[key].v;
-      this._cache[key].t = Date.now();
-      this.log("debug", `Using cached value for '${key}'`);
-      this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(val)}`);
-      return Promise.resolve(val);
+      this.log("debug", `Cache NOT locked for key ${key}. Executing.`);
+      return execCache();
     }
   }
 
