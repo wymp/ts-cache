@@ -27,7 +27,7 @@ describe("Cache", () => {
     }
   });
 
-  it("should cache results", async () => {
+  test("should cache results", async () => {
     let val = await cache.get("test1", t1);
     expect(val).toBe(1);
 
@@ -40,7 +40,7 @@ describe("Cache", () => {
     expect(val).toBe(200);
   });
 
-  it("should clear out old cache keys", async () => {
+  test("should clear out old cache keys", async () => {
     let val: number;
     val = await cache.get("test1", t1);
     expect(val).toBe(1);
@@ -67,7 +67,7 @@ describe("Cache", () => {
     expect(val).toBe(100);
   });
 
-  it("should clear values when requested", async () => {
+  test("should clear values when requested", async () => {
     let val: number;
     val = await cache.get("test1", t1);
     expect(val).toBe(1);
@@ -96,7 +96,7 @@ describe("Cache", () => {
     expect(cache.getCache()).not.toHaveProperty("test1");
   });
 
-  it("should clear values after ttl reached", async () => {
+  test("should clear values after ttl reached", async () => {
     let val: number;
     cache = new TestCache({ ttlSec: 2 });
 
@@ -133,7 +133,7 @@ describe("Cache", () => {
     });
   });
 
-  it("should handle various types of input correctly", async () => {
+  test("should handle various types of input correctly", async () => {
     let val: number | undefined;
     let pval: Promise<number>;
 
@@ -148,7 +148,7 @@ describe("Cache", () => {
     expect(val).toBe(1);
   });
 
-  it("should lock on multiple 'get' calls", async () => {
+  test("should lock on multiple 'get' calls", async () => {
     let calls: number = 0;
     const tst = () => Promise.resolve(++calls);
 
@@ -159,15 +159,44 @@ describe("Cache", () => {
     expect(JSON.stringify(res)).toBe("[1,1,1]");
     expect(calls).toBe(1);
   });
+
+  ([
+    [ "synchronous success", () => 1 ],
+    [ "asynchronous success", () => Promise.resolve(1) ],
+    [ "synchronous failure", () => { throw new Error("Test error!"); return 1; } ],
+    [ "asynchronous failure", () => {
+      return new Promise((res, rej) => {
+        setTimeout(() => rej(new Error("Test error!")), 10);
+      });
+    }],
+  ] as Array<[string, (() => Promise<number>) | (() => number)]>).map(testcase => {
+    test(`should successfully unlock cache on ${testcase[0]}`, async () => {
+      if (testcase[0].match(/success/)) {
+        expect(await cache.get<number>("test", testcase[1])).toBe(1);
+        expect(await cache.get<number>("test", testcase[1])).toBe(1);
+      } else {
+        try {
+          await cache.get<number>("test", testcase[1]);
+        } catch (e) {
+          expect(e.message).toBe("Test error!");
+        }
+        try {
+          await cache.get<number>("test", testcase[1]);
+        } catch (e) {
+          expect(e.message).toBe("Test error!");
+        }
+      }
+    });
+  });
 });
 
 describe("MockCache", () => {
-  it("should correctly fulfill Cache dependencies (TS)", () => {
+  test("should correctly fulfill Cache dependencies (TS)", () => {
     const cache: Cache = new MockCache();
     expect(cache).toHaveProperty("clear");
   });
 
-  it("should always return what's given", () => {
+  test("should always return what's given", () => {
     const cache: Cache = new MockCache();
     expect(cache.get('one', () => Promise.resolve(1))).resolves.toBe(1);
     expect(cache.get('one', () => Promise.resolve(2))).resolves.toBe(2);

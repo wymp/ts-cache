@@ -4,10 +4,9 @@ declare type CacheConfig = { maxLength: number; ttlSec: number };
 declare type Timeout = any; // Typescript has terrible support for NodeJS.Timeout at this time...
 
 export interface CacheInterface {
-  clear(key?: string | RegExp): void;
-  get<T>(key: string): T | undefined;
-  get<T>(key: string, q: () => T, ttlSec?: number): Promise<T>;
-  get<T>(key: string, q: () => Promise<T>, ttlSec?: number): Promise<T>;
+  clear(key?: string | RegExp, log?: SimpleLoggerInterface): void;
+  get<T>(key: string, log?: SimpleLoggerInterface): T | undefined;
+  get<T>(key: string, q: (() => T) | (() => Promise<T>), ttlSec?: number, log?: SimpleLoggerInterface): Promise<T>;
 }
 
 export class Cache implements CacheInterface {
@@ -32,24 +31,24 @@ export class Cache implements CacheInterface {
    * This may be used in an administrative endpoint when, for example, the database is manually
    * manipulated, or it may be used internally to clear a specific key on change.
    */
-  public clear(key?: string | RegExp): void {
+  public clear(key?: string | RegExp, log?: SimpleLoggerInterface): void {
     if (!key) {
-      this.log("notice", `Clearing all cache keys`);
+      this.log("notice", `Clearing all cache keys`, log);
       this._cache = {};
     } else {
-      this.log("notice", `Clearing cache key ${key.toString()}`);
+      this.log("notice", `Clearing cache key ${key.toString()}`, log);
       if (typeof key === "string") {
         if (this._cache.hasOwnProperty(key)) {
-          this.log("info", "String key found. Deleting value.");
+          this.log("info", "String key found. Deleting value.", log);
           delete this._cache[key];
         } else {
-          this.log("info", "String key not found in cache. Not deleting anything.");
+          this.log("info", "String key not found in cache. Not deleting anything.", log);
         }
       } else {
-        this.log("info", "RegExp key. Matching against all cache keys.");
+        this.log("info", "RegExp key. Matching against all cache keys.", log);
         for (let x in this._cache) {
           if (key.test(x)) {
-            this.log("debug", `Key matched: ${x}. Deleting value.`);
+            this.log("debug", `Key matched: ${x}. Deleting value.`, log);
             delete this._cache[x];
           }
         }
@@ -61,13 +60,17 @@ export class Cache implements CacheInterface {
    * Return the value stored at the given key, or execute the given query, storing its return
    * value at the given key if not already set.
    */
-  public get<T>(key: string): T | undefined;
-  public get<T>(key: string, q: () => T, ttlSec?: number): Promise<T>;
-  public get<T>(key: string, q: () => Promise<T>, ttlSec?: number): Promise<T>;
-  public get<T>(key: string, q?: () => T | Promise<T>, ttlSec?: number): T | Promise<T> | undefined {
-    if (!q) {
+  public get<T>(key: string, log?: SimpleLoggerInterface): T | undefined;
+  public get<T>(key: string, q: (() => T) | (() => Promise<T>), ttlSec?: number, log?: SimpleLoggerInterface): Promise<T>;
+  public get<T>(
+    key: string,
+    q?: (() => T) | (() => Promise<T>) | undefined | SimpleLoggerInterface,
+    ttlSec?: number,
+    log?: SimpleLoggerInterface
+  ): T | Promise<T> | undefined {
+    if (!q || typeof q !== "function") {
       const val = this._cache.hasOwnProperty(key) ? <T>this._cache[key].v : undefined;
-      this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(val)}`);
+      this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(val)}`, log);
       return val;
     }
 
@@ -76,7 +79,7 @@ export class Cache implements CacheInterface {
         // Lock the cache so that we don't get multiple processes trying to set it
         this._lock[key] = true;
 
-        this.log("info", `Cache not set for '${key}'. Getting result and caching.`);
+        this.log("info", `Cache not set for '${key}'. Getting result and caching.`, log);
 
         const t = Date.now();
         let ttl = (
@@ -98,57 +101,63 @@ export class Cache implements CacheInterface {
           )
           : null;
 
-        const val = q();
+        try {
+          const val = q();
 
-        // If q returns a promise, then we have to await that
-        if (isPromise<T>(val)) {
-          this.log("info", `Function returned promise. Awaiting....`);
-          return new Promise((res, rej) => {
-            val
-              .then((v: T) => {
-                this.log("info", `Got response. Setting cache and returning.`);
-                this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(v)}`);
-                this._cache[key] = { t, v, ttl: timeout };
-                this._lock[key] = false;
-                this.groomCache();
-                res(v);
-              })
-              .catch((e) => {
-                rej(e);
-              });
-          });
-        } else {
-          this.log("info", `Function returned value. Returning immediately.`);
-          this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(val)}`);
-          this._cache[key] = { t, v: val, ttl: timeout };
+          // If q returns a promise, then we have to await that
+          if (isPromise<T>(val)) {
+            this.log("info", `Function returned promise. Awaiting....`, log);
+            return new Promise((res, rej) => {
+              val
+                .then((v: T) => {
+                  this.log("info", `Got response. Setting cache and returning.`, log);
+                  this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(v)}`, log);
+                  this._cache[key] = { t, v, ttl: timeout };
+                  this._lock[key] = false;
+                  this.groomCache();
+                  res(v);
+                })
+                .catch((e) => {
+                  this._lock[key] = false;
+                  rej(e);
+                });
+            });
+          } else {
+            this.log("info", `Function returned value. Returning immediately.`, log);
+            this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(val)}`, log);
+            this._cache[key] = { t, v: val, ttl: timeout };
+            this._lock[key] = false;
+            this.groomCache();
+            return Promise.resolve(val);
+          }
+        } catch (e) {
           this._lock[key] = false;
-          this.groomCache();
-          return Promise.resolve(val);
+          throw e;
         }
       } else {
         const val = <T>this._cache[key].v;
         this._cache[key].t = Date.now();
-        this.log("debug", `Using cached value for '${key}'`);
-        this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(val)}`);
+        this.log("debug", `Using cached value for '${key}'`, log);
+        this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(val)}`, log);
         return Promise.resolve(val);
       }
     }
 
     if (this._lock[key]) {
-      this.log("debug", `Cache locked for key ${key}. Waiting.`);
+      this.log("debug", `Cache locked for key ${key}. Waiting.`, log);
       return new Promise<T>((res, rej) => {
         const wait = () => {
           if(this._lock[key]) {
             setTimeout(wait, 10);
           } else {
-            this.log("debug", `Cache released for key ${key}. Executing.`);
+            this.log("debug", `Cache released for key ${key}. Executing.`, log);
             res(execCache());
           }
         }
         wait();
       });
     } else {
-      this.log("debug", `Cache NOT locked for key ${key}. Executing.`);
+      this.log("debug", `Cache NOT locked for key ${key}. Executing.`, log);
       return execCache();
     }
   }
@@ -199,9 +208,10 @@ export class Cache implements CacheInterface {
   /**
    * Log at a given log level, if logger is available
    */
-  protected log(level: keyof SimpleLogLevels, msg: string) {
-    if (this._log) {
-      this._log[level](msg);
+  protected log(level: keyof SimpleLogLevels, msg: string, _log?: SimpleLoggerInterface | undefined) {
+    const log = _log || this._log;
+    if (log) {
+      log[level](msg);
     }
   }
 }
@@ -221,13 +231,18 @@ export class MockCache extends Cache {
     super(config || {}, log)
   }
 
-  public get<T>(key: string): T | undefined;
-  public get<T>(key: string, q: () => T, ttlSec?: number): Promise<T>;
-  public get<T>(key: string, q: () => Promise<T>, ttlSec?: number): Promise<T>;
-  public get<T>(key: string, q?: () => T | Promise<T>, ttlSec?: number): T | Promise<T> | undefined {
-    if (!q) {
+  public get<T>(key: string, log?: SimpleLoggerInterface): T | undefined;
+  public get<T>(key: string, q: (() => T) | (() => Promise<T>), ttlSec?: number, log?: SimpleLoggerInterface): Promise<T>;
+  public get<T>(
+    key: string,
+    q?: (() => T) | (() => Promise<T>) | undefined | SimpleLoggerInterface,
+    ttlSec?: number,
+    log?: SimpleLoggerInterface
+  ): T | Promise<T> | undefined {
+    if (!q || typeof q !== "function") {
       return undefined;
     } else {
+      this.log(`debug`, `MOCK CACHE - getting fresh value`, log);
       return q();
     }
   }
