@@ -39,13 +39,13 @@ export class Cache implements CacheInterface {
       this.log("notice", `Clearing cache key ${key.toString()}`, log);
       if (typeof key === "string") {
         if (this._cache.hasOwnProperty(key)) {
-          this.log("info", "String key found. Deleting value.", log);
+          this.log("debug", "String key found. Deleting value.", log);
           delete this._cache[key];
         } else {
-          this.log("info", "String key not found in cache. Not deleting anything.", log);
+          this.log("debug", "String key not found in cache. Not deleting anything.", log);
         }
       } else {
-        this.log("info", "RegExp key. Matching against all cache keys.", log);
+        this.log("debug", "RegExp key. Matching against all cache keys.", log);
         for (let x in this._cache) {
           if (key.test(x)) {
             this.log("debug", `Key matched: ${x}. Deleting value.`, log);
@@ -106,11 +106,11 @@ export class Cache implements CacheInterface {
 
           // If q returns a promise, then we have to await that
           if (isPromise<T>(val)) {
-            this.log("info", `Function returned promise. Awaiting....`, log);
+            this.log("debug", `Function returned promise. Awaiting....`, log);
             return new Promise((res, rej) => {
               val
                 .then((v: T) => {
-                  this.log("info", `Got response. Setting cache and returning.`, log);
+                  this.log("debug", `Got response. Setting cache and returning.`, log);
                   this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(v)}`, log);
                   this._cache[key] = { t, v, ttl: timeout };
                   this._lock[key] = false;
@@ -123,7 +123,7 @@ export class Cache implements CacheInterface {
                 });
             });
           } else {
-            this.log("info", `Function returned value. Returning immediately.`, log);
+            this.log("debug", `Function returned value. Returning immediately.`, log);
             this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(val)}`, log);
             this._cache[key] = { t, v: val, ttl: timeout };
             this._lock[key] = false;
@@ -137,7 +137,7 @@ export class Cache implements CacheInterface {
       } else {
         const val = <T>this._cache[key].v;
         this._cache[key].t = Date.now();
-        this.log("debug", `Using cached value for '${key}'`, log);
+        this.log("info", `Using cached value for '${key}'`, log);
         this.log("debug", `Returning value for cache key ${key}: ${JSON.stringify(val)}`, log);
         return Promise.resolve(val);
       }
@@ -177,7 +177,7 @@ export class Cache implements CacheInterface {
       // Groom if necessary
       const cacheLength = Object.keys(this._cache).length;
       if (cacheLength > this.config.maxLength) {
-        this.log("notice", `Current cache is ${cacheLength} objects. Grooming.`);
+        this.log("info", `Current cache is ${cacheLength} objects. Grooming.`);
 
         let kill: string | null = null;
         let oldest: number = Date.now();
@@ -190,7 +190,7 @@ export class Cache implements CacheInterface {
         }
 
         if (kill !== null) {
-          this.log("info", 
+          this.log("debug",
             `Destroying item at ${kill}, which was last used at ${new Date(oldest).toString()}`
           );
           delete this._cache[kill];
