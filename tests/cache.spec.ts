@@ -1,5 +1,5 @@
-import { SimpleLoggerInterface } from "ts-simple-interfaces";
-import { MockSimpleLogger } from "ts-simple-interfaces-testing";
+import { SimpleLoggerInterface } from "@wymp/ts-simple-interfaces";
+import { MockSimpleLogger } from "@wymp/ts-simple-interfaces-testing";
 import { Cache, MockCache } from "../src";
 
 // Extend cache to expose internals

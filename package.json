@@ -1,5 +1,5 @@
 {
-  "name": "@openfinanceio/cache",
+  "name": "@wymp/cache",
   "version": "1.2.1",
   "description": "A simple, in-memory cache for javascript projects",
   "main": "dist/index.js",
@@ -11,10 +11,9 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+ssh://github.com:openfinanceio/ts-cache.git"
+    "url": "git+ssh://github.com:wymp/ts-cache.git"
   },
   "keywords": [
-    "openfinance",
     "cache",
     "memcached",
     "redis"
@@ -22,22 +21,22 @@
   "author": "Openfinance Developers",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/openfinanceio/ts-cache/issues"
+    "url": "https://github.com/wymp/ts-cache/issues"
   },
-  "homepage": "https://github.com/openfinanceio/ts-cache#readme",
+  "homepage": "https://github.com/wymp/ts-cache#readme",
   "dependencies": {
-    "@types/node": "^8.10.63",
-    "ts-simple-interfaces": "^0.4.3"
+    "@types/node": "^8.10.66",
+    "@wymp/ts-simple-interfaces": "^0.5.1"
   },
   "devDependencies": {
     "@types/jest": "^24.0.17",
+    "@wymp/ts-simple-interfaces-testing": "^0.5.0",
     "husky": "^1.3.1",
     "jest": "^24.8.0",
     "prettier": "^1.16.0",
     "pretty-quick": "^1.10.0",
     "ts-jest": "^24.0.2",
-    "ts-simple-interfaces-testing": "^0.4.0",
-    "typescript": "^3.9.7"
+    "typescript": "^4.2.4"
   },
   "prettier": {
     "printWidth": 100,

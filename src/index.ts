@@ -1,4 +1,4 @@
-import { SimpleLoggerInterface, SimpleLogLevels } from "ts-simple-interfaces";
+import { SimpleLoggerInterface, SimpleLogLevels } from "@wymp/ts-simple-interfaces";
 
 declare type CacheConfig = { maxLength: number; ttlSec: number };
 declare type Timeout = any; // Typescript has terrible support for NodeJS.Timeout at this time...
