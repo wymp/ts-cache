@@ -10,9 +10,8 @@ class TestCache extends Cache {
 }
 
 describe("Cache", () => {
-
   let log: SimpleLoggerInterface;
-  let db: { test1: number; test2: number; test3: number; };
+  let db: { test1: number; test2: number; test3: number };
   let cache: TestCache;
   const t1 = () => Promise.resolve(db.test1);
   const t2 = () => Promise.resolve(db.test2);
@@ -24,7 +23,7 @@ describe("Cache", () => {
       test1: 1,
       test2: 2,
       test3: 3,
-    }
+    };
   });
 
   test("should cache results", async () => {
@@ -60,7 +59,7 @@ describe("Cache", () => {
     expect(val).toBe(3);
 
     // Wait a bit for the gc
-    await new Promise(res => setTimeout(() => res(), 8));
+    await new Promise<void>(res => setTimeout(() => res(), 8));
 
     expect(cache.getCache()).not.toHaveProperty("test1");
     val = await cache.get("test1", t1);
@@ -111,7 +110,7 @@ describe("Cache", () => {
 
     let run = 1;
     let timer: any;
-    await new Promise((res, rej) => {
+    await new Promise<void>((res, rej) => {
       timer = setInterval(() => {
         if (run === 1) {
           expect(cache.getCache()).toHaveProperty("test1");
@@ -142,7 +141,7 @@ describe("Cache", () => {
 
     pval = cache.get("test1", () => 1);
     expect(typeof pval.then).not.toBe("undefined");
-    await pval.then((v) => expect(v).toBe(1));
+    await pval.then(v => expect(v).toBe(1));
 
     val = cache.get("test1");
     expect(val).toBe(1);
@@ -153,7 +152,7 @@ describe("Cache", () => {
     const tst = () => Promise.resolve(++calls);
 
     const res: Array<number> = await Promise.all(
-      [ 1, 2, 3 ].map(n => cache.get<number>("test", tst))
+      [1, 2, 3].map(n => cache.get<number>("test", tst))
     );
 
     expect(JSON.stringify(res)).toBe("[1,1,1]");
@@ -161,14 +160,23 @@ describe("Cache", () => {
   });
 
   ([
-    [ "synchronous success", () => 1 ],
-    [ "asynchronous success", () => Promise.resolve(1) ],
-    [ "synchronous failure", () => { throw new Error("Test error!"); return 1; } ],
-    [ "asynchronous failure", () => {
-      return new Promise((res, rej) => {
-        setTimeout(() => rej(new Error("Test error!")), 10);
-      });
-    }],
+    ["synchronous success", () => 1],
+    ["asynchronous success", () => Promise.resolve(1)],
+    [
+      "synchronous failure",
+      () => {
+        throw new Error("Test error!");
+        return 1;
+      },
+    ],
+    [
+      "asynchronous failure",
+      () => {
+        return new Promise<never>((res, rej) => {
+          setTimeout(() => rej(new Error("Test error!")), 10);
+        });
+      },
+    ],
   ] as Array<[string, (() => Promise<number>) | (() => number)]>).map(testcase => {
     test(`should successfully unlock cache on ${testcase[0]}`, async () => {
       if (testcase[0].match(/success/)) {
@@ -198,8 +206,7 @@ describe("MockCache", () => {
 
   test("should always return what's given", () => {
     const cache: Cache = new MockCache();
-    expect(cache.get('one', () => Promise.resolve(1))).resolves.toBe(1);
-    expect(cache.get('one', () => Promise.resolve(2))).resolves.toBe(2);
+    expect(cache.get("one", () => Promise.resolve(1))).resolves.toBe(1);
+    expect(cache.get("one", () => Promise.resolve(2))).resolves.toBe(2);
   });
 });
-
